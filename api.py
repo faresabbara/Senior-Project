@@ -1,13 +1,10 @@
-# api.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from typing import List
 from pydantic import BaseModel
 import uuid
-import w8   # your w8.py module
+import w8
 
 app = FastAPI(title="StudyBuddy Llama API")
-
-# on server start, pull in any saved sessions:
-w8.load_saved_sessions()
 
 class MessageIn(BaseModel):
     content: str
@@ -16,64 +13,80 @@ class MessageOut(BaseModel):
     role: str
     content: str
 
-@app.post("/sessions", response_model=str)
-def create_session():
-    """Start a brand-new chat session and return its UUID."""
+# ✅ Create session for a specific user
+@app.post("/sessions/{user_id}", response_model=str)
+def create_session(user_id: str):
     session_id = str(uuid.uuid4())
-    w8.start_session(session_id)
+    w8.start_session(session_id, user_id)
     return session_id
 
-@app.get("/sessions", response_model=list[str])
-def list_sessions():
-    """
-    Return the list of all existing session IDs,
-    active *and* terminated.
-    """
-    return [
-        *w8.active_sessions.keys(),
-        *w8.terminated_sessions.keys()
-    ]
+# ✅ Get list of sessions for a user
+@app.get("/users/{user_id}/sessions", response_model=List[str])
+def list_sessions(user_id: str):
+    return w8.list_sessions_for_user(user_id)
 
-@app.get("/sessions/{session_id}/messages", response_model=list[MessageOut])
-def get_messages(session_id: str):
-    """Fetch the entire chat history for a session."""
-    if session_id in w8.active_sessions:
-        history = w8.active_sessions[session_id]["chat_history"]
-    elif session_id in w8.terminated_sessions:
-        history = w8.terminated_sessions[session_id]["chat_history"]
-    else:
+# ✅ Get all messages in a session for a user
+@app.get("/users/{user_id}/sessions/{session_id}/messages", response_model=List[MessageOut])
+def get_messages(user_id: str, session_id: str):
+    messages = w8.fetch_messages_from_firestore(user_id, session_id)
+    if messages is None:
         raise HTTPException(status_code=404, detail="Session not found")
-    return [MessageOut(**msg) for msg in history]
+    return [MessageOut(**msg) for msg in messages]
 
-@app.post("/sessions/{session_id}/messages", response_model=MessageOut)
-def post_message(session_id: str, msg: MessageIn):
-    """Send a user message to Llama, record it, record the AI reply, and return the AI reply."""
-    if session_id not in w8.active_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    ai_text = w8.llama_chat_response(session_id, msg.content)
-    if ai_text is None:
-        raise HTTPException(status_code=500, detail="Model failed")
+# ✅ Post a message to a session for a user
+@app.post("/sessions/{user_id}/{session_id}/messages", response_model=MessageOut)
+def post_message(user_id: str, session_id: str, msg: MessageIn):
+    # 1. Get the AI’s raw reply (might be None)
+    ai_text_raw = w8.handle_user_message_firestore(session_id, user_id, msg.content)
+
+    # 2. Guard against None so we never call .encode() on it
+    if ai_text_raw is None:
+        # You can return an empty reply, or a default message
+        ai_text_raw = ""
+        # Or raise a controlled HTTP error:
+        # raise HTTPException(status_code=500, detail="Model returned no text")
+
+    # 3. Now it’s safe to encode/decode
+    ai_text = ai_text_raw.encode("utf-8", errors="replace").decode("utf-8")
+
     return MessageOut(role="ai", content=ai_text)
 
+# ✅ Terminate a session
+@app.post("/users/{user_id}/sessions/{session_id}/terminate")
+def terminate_session_api(user_id: str, session_id: str):
+    w8.terminate_session(user_id, session_id)
+    return {"message": f"Session {session_id} terminated."}
 
-@app.post("/sessions/{session_id}/terminate")
-def terminate_session_api(session_id: str):
-    """Terminate a session explicitly."""
-    if session_id in w8.active_sessions:
-        w8.terminate_session(session_id)
-        return {"message": f"Session {session_id} terminated and saved."}
-    elif session_id in w8.terminated_sessions:
-        return {"message": f"Session {session_id} was already terminated."}
-    else:
-        raise HTTPException(status_code=404, detail="Session not found at all.")
+# ✅ Load session (reactivate if needed)
+@app.post("/users/{user_id}/sessions/{session_id}/load")
+def load_session_api(user_id: str, session_id: str):
+    w8.start_session(session_id, user_id)
+    return {"message": f"Session {session_id} loaded."}
 
-@app.post("/sessions/{session_id}/load")
-def load_session_api(session_id: str):
-    """Load a terminated session into active sessions."""
-    if session_id in w8.active_sessions:
-        return {"message": f"Session {session_id} is already active."}
-    elif session_id in w8.terminated_sessions:
-        w8.load_session(session_id)
-        return {"message": f"Session {session_id} reloaded into active sessions."}
-    else:
-        raise HTTPException(status_code=404, detail="Session not found")
+# ✅ For PDF indexing (global, not user-specific)
+class FolderRequest(BaseModel):
+    folder: str
+
+@app.post("/index_pdfs")
+async def index_pdfs(files: List[UploadFile] = File(...)):
+    file_paths = []
+    for uploaded_file in files:
+        file_location = f"/tmp/{uploaded_file.filename}"
+        with open(file_location, "wb") as f:
+            content = await uploaded_file.read()
+            f.write(content)
+        file_paths.append(file_location)
+
+    try:
+        w8.build_faiss_index_from_pdfs(file_paths)
+        return {"message": f"Indexed {len(file_paths)} PDF(s) into the vector store."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to index PDFs: {str(e)}")
+
+@app.post("/index_from_folder")
+def index_from_folder(req: FolderRequest):
+    try:
+        w8.build_faiss_index_from_folder(req.folder)
+        return {"message": f"Indexed all PDFs from folder: {req.folder}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to index folder: {str(e)}")
