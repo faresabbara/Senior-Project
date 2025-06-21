@@ -761,6 +761,65 @@ class _ChatHomePageState extends State<ChatHomePage>
     }
   }
 
+  Widget _buildRichText(String text) {
+  final List<TextSpan> spans = [];
+  final RegExp boldRegex = RegExp(r'\*\*(.*?)\*\*');
+  
+  int lastEnd = 0;
+  for (final Match match in boldRegex.allMatches(text)) {
+    // Add text before the bold part
+    if (match.start > lastEnd) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd, match.start),
+        style: TextStyle(
+          fontSize: 16,
+          color: Colors.black, // Explicit text color
+        ),
+      ));
+    }
+    
+    // Add the bold part
+    spans.add(TextSpan(
+      text: match.group(1)!,
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: Colors.black, // Explicit text color
+      ),
+    ));
+    
+    lastEnd = match.end;
+  }
+  
+  // Add remaining text
+  if (lastEnd < text.length) {
+    spans.add(TextSpan(
+      text: text.substring(lastEnd),
+      style: TextStyle(
+        fontSize: 16,
+        color: Colors.black, // Explicit text color
+      ),
+    ));
+  }
+  
+  // If no bold text found, return simple text
+  if (spans.isEmpty) {
+    return Text(
+      text,
+      style: TextStyle(fontSize: 16, color: Colors.black),
+    );
+  }
+  
+  return RichText(
+    text: TextSpan(
+      children: spans,
+      style: TextStyle(
+        color: Colors.black, // Default color for the whole text
+      ),
+    ),
+  );
+}
+
   @override
   void initState() {
     super.initState();
@@ -809,7 +868,7 @@ class _ChatHomePageState extends State<ChatHomePage>
     _svc.sessionId = sid;
 
     try {
-      await http.post(Uri.parse("https://dec0-194-27-149-159.ngrok-free.app/users/$userId/sessions/$sid/load"));
+      await http.post(Uri.parse("https://113e-78-190-223-66.ngrok-free.app/users/$userId/sessions/$sid/load"));
 print("✅ Session loaded on backend: $sid");
 
     } catch (e) {
@@ -874,7 +933,7 @@ print("✅ Session loaded on backend: $sid");
           final sessionId = _svc.sessionId ?? '';
           await http.post(
             Uri.parse(
-              'https://dec0-194-27-149-159.ngrok-free.app/users/$userId/sessions/$sessionId/load',
+              'https://113e-78-190-223-66.ngrok-free.app/users/$userId/sessions/$sessionId/load',
             ),
           );
           print("✅ Session loaded on backend: $sid");
@@ -901,7 +960,7 @@ print("✅ Session loaded on backend: $sid");
         final sessionId = _svc.sessionId ?? '';
         await http.post(
           Uri.parse(
-            'https://dec0-194-27-149-159.ngrok-free.app/users/$userId/sessions/$sessionId/load',
+            'https://113e-78-190-223-66.ngrok-free.app/users/$userId/sessions/$sessionId/load',
           ),
         );
       } catch (e) {
@@ -959,7 +1018,7 @@ print("✅ Session loaded on backend: $sid");
       final sessionId = _svc.sessionId ?? '';
       await http.post(
         Uri.parse(
-          'https://dec0-194-27-149-159.ngrok-free.app/users/$userId/sessions/$sessionId/load',
+          'https://113e-78-190-223-66.ngrok-free.app/users/$userId/sessions/$sessionId/load',
         ),
       );
       print("✅ Session loaded on backend: $sid");
@@ -995,7 +1054,7 @@ print("✅ Session loaded on backend: $sid");
       final sessionId = _svc.sessionId ?? '';
       await http.post(
         Uri.parse(
-          'https://dec0-194-27-149-159.ngrok-free.app/users/$userId/sessions/$sessionId/load',
+          'https://113e-78-190-223-66.ngrok-free.app/users/$userId/sessions/$sessionId/load',
         ),
       );
       print("✅ Session loaded on backend: $sid");
@@ -1284,10 +1343,7 @@ print("✅ Session loaded on backend: $sid");
                                                     : Radius.circular(16),
                                           ),
                                         ),
-                                        child: Text(
-                                          m.values.first,
-                                          style: TextStyle(fontSize: 16),
-                                        ),
+                                        child: _buildRichText(m.values.first),
                                       ),
                                     );
                                   }).toList(),

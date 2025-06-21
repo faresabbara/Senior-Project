@@ -12,7 +12,7 @@ class Message {
 }
 
 class ChatService {
-  ChatService({this.baseUrl = 'https://dec0-194-27-149-159.ngrok-free.app'});
+  ChatService({this.baseUrl = 'https://113e-78-190-223-66.ngrok-free.app'});
   //ChatService({this.baseUrl = 'http://172.20.10.2:8000'});
   //ChatService({this.baseUrl = 'http://172.20.10.2:8000'});
 
@@ -70,11 +70,11 @@ class ChatService {
     String userInput,
   ) async {
     print(
-      "🌐 Sending message to: https://dec0-194-27-149-159.ngrok-free.app/sessions/$userId/$sessionId/messages",
+      "🌐 Sending message to: https://113e-78-190-223-66.ngrok-free.app/sessions/$userId/$sessionId/messages",
     );
 
     final response = await http.post(
-      Uri.parse('https://dec0-194-27-149-159.ngrok-free.app/sessions/$userId/$sessionId/messages'),
+     Uri.parse('https://113e-78-190-223-66.ngrok-free.app/sessions/$userId/$sessionId/messages'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'content': userInput}),
     );
@@ -164,12 +164,19 @@ class ChatService {
             .get();
 
     return snapshot.docs
-        .where(
-          (doc) =>
-              doc.data().containsKey('role') &&
-              doc.data().containsKey('content'),
-        )
-        .map((doc) => {doc['role'] as String: doc['content'] as String})
-        .toList();
+    .where((doc) {
+      final data = doc.data();
+      return data.containsKey('role') && 
+             data.containsKey('content') &&
+             data['role'] != null && 
+             data['content'] != null;
+    })
+    .map((doc) {
+      final data = doc.data();
+      final role = data['role']?.toString() ?? 'unknown';
+      final content = data['content']?.toString() ?? '';
+      return {role: content};
+    })
+    .toList();
   }
 }
