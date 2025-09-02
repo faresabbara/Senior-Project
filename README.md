@@ -1,7 +1,7 @@
-when running the chatbot.ipynb you will need to run the terminal on google colab so after doing that make sure to run this command first 
-(curl -fsSL https://ollama.com/install.sh | sh)
-then you have to run this command 
-(ollama serve & ollama pull llama3)
-if it didn't work then you should run it again then it will work 
+This application was designed by Fares Abbara, Dima Sabbagh, and Hussein Alhadha.
 
-https://colab.research.google.com/drive/1OSJliHD8kBddSJIB2MnIL3fqjC31kTvm#scrollTo=wAYuAeZf_0Iu
+The purpose of this application is to help forigne students that are coming to turkey with their documents including(Residence permit, Transportation card, Bank account...etc).
+
+It's a multi-lingual application that is able to interact with users from all around the world, It also has the feature of being a mental health support to students who are feeling homesick.
+
+This project was approved by TÜBİTAK's 2209-A research projects support program for university students.
